@@ -88,3 +88,33 @@ cd dozerdb-plugin
 
 The shaded uber-jar will be at `target/dozerdb-plugin-<version>.jar`. Copy it into
 your Neo4j installation's `lib/` directory and restart the database.
+
+## Configuring the maximum number of databases
+
+DozerDB lifts Neo4j Community's single-user-database restriction. The cap is
+controlled by `dbms.max_databases` in `conf/neo4j.conf`:
+
+```properties
+# Default is 100. Bump as needed.
+dbms.max_databases=500
+```
+
+Restart Neo4j for the change to take effect. Creating a database past the limit
+fails with a clear error message.
+
+### Tuning when running many databases
+
+Each Neo4j database — even idle — owns its own page-cache region, open file
+handles, transaction-log files, schema caches, and bolt/transaction-manager
+state. The defaults that ship with Neo4j are sized for a handful of databases,
+not hundreds. Review these tunables when you raise `dbms.max_databases`:
+
+| Concern              | Tunable                                                | Notes                                                                                                                                       |
+| -------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| JVM heap             | `server.memory.heap.max_size`, `server.memory.heap.initial_size` (in `neo4j.conf`) | Per-database metadata, schema caches, and transaction state live on heap. Allow comfortable headroom. Set initial = max to avoid resize pauses. |
+| Page cache           | `server.memory.pagecache.size` (in `neo4j.conf`)        | Size for your **active** working set, not linearly with database count. Idle databases barely touch the page cache.                          |
+| Open file descriptors| OS-level `ulimit -n` (interactive) or `LimitNOFILE` in the systemd unit | Each database keeps multiple store/index/log files open even when idle. Default 1024 is too low — raise to 40000+ for hundreds of databases. |
+| Heap-vs-page-cache   | Total ≤ ~70% of system RAM                              | Leave room for the OS file cache and per-process overhead. The Neo4j memory recommendation tool (`neo4j-admin server memory-recommendation`) is a good starting point. |
+
+If a database refuses to open after raising `dbms.max_databases`, check the OS
+file-descriptor limit first — it's almost always the bottleneck.
