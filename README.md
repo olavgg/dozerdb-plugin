@@ -88,3 +88,5 @@ cd dozerdb-plugin
 
 The shaded uber-jar will be at `target/dozerdb-plugin-<version>.jar`. Copy it into
 your Neo4j installation's `lib/` directory and restart the database.
+
+This build is tested on Ubuntu 24.04
